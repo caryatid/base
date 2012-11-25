@@ -1,10 +1,6 @@
-#!/use/bin/python
-#######################
-## |TODO|set up logging|0|
-## |62e3ad3a-23e4-4de1-bc35-8d19eb9d130b|2012-11-13 09:52|dave|
+#!/use/bin/python 
 
-
-import glob, os, re, readline, logging, tempfile, cmd,logging
+import glob, os, re, readline, logging, tempfile, cmd,logging,collections
 ########################################################################
 ## settings and objects
 #####----------------------------------------------------------------{{{
@@ -14,7 +10,8 @@ import glob, os, re, readline, logging, tempfile, cmd,logging
 #####--------------------------------------{{{
 
 L = logging.getLogger(__name__)
-logging.basicConfig(level=logging.DEBUG, filename="/home/dave/.ds/ds.log")
+logging.basicConfig(level=logging.DEBUG, filename="/home/dave/.ds/ds.log"
+        , format="%(levelname)s:%(lineno)d:%(name)s:%(message)s")
 readline.set_completer_delims("".join([x for x in readline.get_completer_delims() if not x == '/']))
 #####------------------||------------------}}}
 ## end: settings
@@ -24,33 +21,133 @@ readline.set_completer_delims("".join([x for x in readline.get_completer_delims(
 ## objects
 #####--------------------------------------{{{
 
-class coreData(object):
-    def __init__(self):
+class coreCommand(object):
+    def __init__(self, core):
         L.debug("init of {}".format(self.__class__))
-        self.core = None
-        self.data = None
-        self.completer = None
-    def set_core(self, core ):
+        self.args = None 
         self.core = core
-        self.completer.set_core(core)
-    def set_completer(self, comp):
-        self.completer = comp
-        self.completer.set_core_data(self)
-    def by_index(self, idx=None):
+        self.valdiated_args = []
+        self.check_prev = None
+        self.name = None
+    def __call__(self, args):
+        a = args.split()
+        L.debug("calling __call__ from class: {} with args: {}".format(self.__class__,
+            a))
+        self.validated_args = []
+        prev_arg = a[0] if a else None
+        prev_data = None
+        for arg, possibilities, prev in zip(a, self.args, self.check_prev):
+            arg_tuple = (arg, [])
+            if not prev:
+                [arg_tuple[1].append(data) for data in possibilities 
+                        if arg in data.by_index()]
+            else:
+                L.debug("prev_arg: {}".format(prev_arg))
+                arg_tuple[1].append(self.core.type[prev_arg])
+            self.validated_args.append(arg_tuple)
+            prev_arg = arg
+            prev_data = arg_tuple[1]
+        L.debug("validated args: {}".format(self.validated_args))
+        self.execute()
+    def set_args(self):
+        self.args = []
+        #########
+        ## args rules
+        # if '!' then rest doesn't matter
+        
+        comp_list = [y if isinstance(y, list) else [y] for y in self.str_args]
+        self.check_prev = [True if '!' in y[0] else False for y in comp_list]
+        comp_list = [list(self.core.data.keys()) if '*' in x[0] else x[0].strip('!') for x in comp_list]
+        # self.args = [[self.core.data[y] for y in x if not y in '*!' ] for x in comp_list]  
+        for cs in comp_list:
+            comps = []
+            for name in cs:
+                try:
+                    comps.append(self.core.data[name])
+                except KeyError:
+                    L.error("why here")        
+            comps.append(self.core.data)
+            self.args.append(comps)
+        L.debug(comp_list)
+    def execute(self):
         pass
-    def info(self, arg=None):
-        """
-        info on various objects
-        """
-        L.debug("running info of {} with arg {}".format(self.__class__, arg))
-        print(self.__doc__)
-        [print(" --| {}".format(x)) for x in self.by_index(arg)]
-    def list(self):
-        return self.by_index()
-    def add_data(self, data):
+    def complete(self,text, line, begi, endi):
+        self.set_args()
+        L.debug("complete at class: {}".format(self.__class__))
+        i = 0
+        args = line.split()[1:]
+        completions=[]
+        if text:
+            i = i - 1
+            i = 0 if (i < 0) else i
+            prev_arg = line.split()[-2]
+        else:
+            prev_arg = line.split()[-1]
+        i = len(args)
+        try:
+            self.args[i]
+        except IndexError:
+            L.debug("IndexError")
+            self.str_args.append('!')
+            self.set_args()
+
+        L.debug("length: {}".format(i))
+        if not self.check_prev[i]:
+            prev_arg = None 
+        for d in self.args[i]:
+            if prev_arg:
+                try:
+                    completions.extend(d[prev_arg])
+                    self.str_args[-1].append(d.name)
+                    self.set_args()
+                    L.debug("nice: prev_arg: {}".format(prev_arg))
+                except KeyError:
+                    L.debug("oops: prev_arg: {}".format(prev_arg))
+            else:
+                completions.extend(d)
+
+        return completions
+   
+class infoCommand(coreCommand):
+    def __init__(self, core):
+        super(infoCommand, self).__init__(core)
+        self.name = 'info'
+        self.str_args = ['*']
+        self.args = []
+    def execute(self):
+        L.debug("execute in: {}".format(self.__class__))
+        L.debug("validtated_args: {}".format(self.validated_args)) 
+        for args in self.validated_args:
+            [x.info(args[0]) for x in args[1]]
         pass
-    def remove_data(self, id):
-        pass
+
+
+
+class coreData(collections.UserDict):
+   def __init__(self, core, *data, **kwargs):
+       super(coreData, self).__init__(data)
+       L.debug("init of {}".format(self.__class__))
+       self.name = ""
+       self.id = 'UUID PLEASE'
+       self.core = core
+       self.completer = subComp(self, core)
+   def extra_info(self, idx=None):
+       """ override for extra coreData subclass info """
+       pass
+   def info(self, arg=None):
+       """
+       info on various objects
+       """
+       #######################
+       ## |TODO|formatter for info output|4|
+       ## |0abec356-e9fa-4184-8503-64cf4754b300|2012-11-14 20:18|dave|
+       # should be nice
+
+       print(self.__doc__)
+       [print(" --| {}".format(x)) for x in self.by_index(arg)]
+       self.extra_info(arg)
+       
+       pass
 
 
 #########
@@ -61,52 +158,38 @@ class hostData(coreData):
     """
     Known hosts
     """
-    def __init__(self):
-        super(hostData,self).__init__()
-        self.set_completer(hostComp()) 
-    def by_index(self, idx=None):
-        if idx:
-            return []
-        return ['liszt', 'tchaikovsky', 'dvorak', 'beethoven']
+    def __init__(self, core):
+        super(hostData,self).__init__(core)
+        self.set_name = "hosts"
+        # self.completer = hostComp(self, self.core)
+        for x in ['liszt', 'tchaikovsky', 'dvorak', 'beethoven']:
+            self[x] = None
 
 #########
 ## command
-# 
+
 class commandData(coreData):
     """
     Commands available 
     """
-    def __init__(self):
-        super(commandData, self).__init__()
-        self.set_completer(commandComp())
-    def by_index(self, idx=None):
-        if idx:
-            try:
-                print(getattr(self, idx).__doc__)
-            except:
-                L.warning( "no {} command available".format(idx))
-            return []
-        else:
-            return [x[3:] for x in self.core.command.get_names() if x.startswith('do_')]
+    def __init__(self, core):
+        super(commandData, self).__init__(core)
+        # self.completer =commandComp(self, core)
+        self['info'] = infoCommand(self.core)
+        self.name = 'commands'
 
 
-#########
-## data objects
+########
+# data objects
 class dataData(coreData):
     """ data types avaliable """
-    def __init__(self):
-        super(dataData, self).__init__()
-        self.set_completer(dataComp())
-    def by_index(self, idx=None):
-        if idx:
-            try:
-                return self.core.type[idx].list()
-            except KeyError:
-                return []
-        else:
-            return list(self.core.type.keys())
-
-
+    def __init__(self, core):
+        super(dataData, self).__init__(core)
+        # self.completer=dataComp(self, self.core)
+        self.name = 'data'
+        self['flists'] =  flistData(self.core)
+        self['hosts'] = hostData(self.core)
+        self['commands'] = commandData(self.core)
 
 #########
 ## filelists
@@ -114,186 +197,102 @@ class flistData(coreData):
     """
     known files
     """
-    def __init__(self):
-        super(flistData, self).__init__()
-        self.set_completer(flistComp())
-        self.data = {}
-    def by_index(self, idx=None):
-        #######################
-        ## |TODO|allow for an all index that is all files|1|
-        ## |e09c75ae-e982-4c1b-8905-86276bab7e18|2012-11-02 11:02|dave|
-        self.gen_flists()
-        if idx:
-            if idx in self.data.keys():
-                return self.data[idx]
-            else:
-                return []
-        else:
-            return list(self.data.keys())
+    def __init__(self, core):
+        super(flistData, self).__init__(core)
+        self.comleter=flistComp(self, core)
+        self.root = self.core.root
+        self.data_dir = os.path.join(self.core.root, '.ds')
+        L.debug(self.data_dir)
+        self.gen_flists() 
+        self.name = 'flists'
     def gen_filter(self,name):
         fil = set()
         try: 
-            with open(os.path.join(self.core.data_dir, name + ".filter")) as n:
+            with open(os.path.join(self.data_dir, name + ".filter")) as n:
                 [fil.add(x[:-1]) for x in n.readlines()]
         except IOError as foo:
             print("should {}.filter be created? ".format(name))
         finally:
-            with open(os.path.join(self.core.data_dir, "global.filter")) as g:
+            with open(os.path.join(self.data_dir, "global.filter")) as g:
                 [fil.add(x[:-1]) for x in g.readlines()] 
         # convert list to regex or-matcher
         all_fil = "(" + ")|(".join(fil) + ")"
         return re.compile(all_fil)
     def gen_flists(self):
-        for fname in glob.glob(self.core.data_dir + "/*.files"):
-            L.debug("generating files from: {}".format(fname))
+        for fname in glob.glob(self.data_dir + "/*.files"):
             name = os.path.splitext(os.path.split(fname)[1])[0]
             fil= self.gen_filter(name)
-            self.data[name] = []
-            L.debug("gen_flists at root: {}".format(self.core.root))
-            for top in [(os.path.join(self.core.root, x)[:-1]) for x in open(fname).readlines() if x]:
+            self[name] = {}
+            for top in [(os.path.join(self.root, x)[:-1]) 
+                    for x in open(fname).readlines() if x]:
                 if not os.path.isdir(top):
-                    self.data[name].append(top)
+                    self[name][top] = 'top level dir'
                 else:
                     for dr,dirs, fls in os.walk(top):
                         [dirs.remove(d) for d in dirs if fil.match(d)]
                         fs = [f for f in fls if not fil.match(f)]
-                        self.data[name].append(dr)
-                        self.data[name].extend(fs) 
-                        # for fs_or_ds in (dirs, fls):
-                            # keep = []
-                            # for f_or_d in fs_or_ds:
-                                # if fil.match(f_or_d):
-                                    # fs_or_ds.remove(f_or_d)
-                                # else:
-                                    # keep.append(os.path.join(dr, f_or_d))
-                                # self.data[name].extend(keep)
-
+                        # self.data[name].append(dr)
+                        # self[name].extend([os.path.join(dr, fname) for fname in fs])
+                        for fname in fs:
+                            self[name][fname] = 'fstat here'
 #########
 ## history
-# omg it is a list of dicts for your enjoyment
 
 class subComp(cmd.Cmd):
-    def __init__(self):
+    def __init__(self, data, core):
         L.debug("init of {}".format(self.__class__))
         cmd.Cmd.__init__(self)
-        self.prev_arg = None
-        self.core = None
-        self.core_data = None
-        self.check_prev = None
-        self.args = None
-    def set_args(self, completers=[]):
-        comp_list = [y if isinstance(y, list) else [y] for y in completers]
-        self.check_prev = [True if '!' in y[0] else False for y in comp_list]
-        comp_list = [list(self.core.type.keys()) if '*' in x[0] else x for x in comp_list]
-        self.args = [[self.core.type[y].completer for y in x if not y == '!'] for x in comp_list]  
+        self.core = core
+        self.data = data
     def set_core(self, core):
         self.core = core
     def set_core_data(self,  type):
         self.core_data = type
-    def gen_comp(self):
-        if self.prev_arg:
-            return self.core_data.by_index(self.prev_arg)
-        else:
-            return self.core_data.list()
-    def set_prev_arg(self, arg):
-        self.prev_arg = arg
+    def gen_comp(self, prev_arg=None):
+        return [x for x in self.data]
     def find_in_list(self, x, ls):
         return [f for f in ls if f.startswith(x)]
-    def pos_complete(self, text, line, begi, endi):
-        (c,a,l) = self.parseline(line)
-        completers = None
-        i = 0
-        args = a.split()
-        completions=[]
-        prev_arg = None
-        i = len(args)
-        if text:
-            i = i - 1
-            i = 0 if (i < 0) else i
-            if self.check_prev[i]:
-                prev_arg =   l.split()[-2]
-        else:
-            if self.check_prev[i]:
-                prev_arg = l.split()[-1]
-        try:
-            completers = self.args[i]
-            [x.set_prev_arg(prev_arg) for x in [y for y in completers]]
-        except:
-            completers = None
-        if not completers:
-            return []
-        [completions.extend(x.gen_comp()) for x in completers]
+    def do_info(self, args):
+        self.core.commands['info'](args)
+    def complete_info(self, text, line, begi, endi):
+        completions =  self.core.data['commands']['info'].complete(text, line, begi, endi)
         if text:
             completions = self.find_in_list(text, completions)
         return completions
-    def do_list(self, text, line, begi,endi):
-        if text:
-            self.core_data.by_index(text)
-        else:
-            self.core_data.list()
-    def do_info(self, args):
-        #######################
-        ## |TODO|move this stuff to a coreData object|8|
-        ## |4e18a85f-541f-4e36-b93a-fa038f42be92|2012-11-13 09:52|dave|
-        # do_* is where tests for special actions like
-        # entering a shell should happen
-        # doing so may require access to the self.args -- haven't
-        # quite figured out that shit
-        a = args.split()
-        if len(a) == 0:
-            self.core_data.info()
-        elif len(a) == 1:
-            datas = [x for x in self.core.type.values() if a[0] in x.list()]
-            if not datas:
-                print("there is nothing matching: {}".format(a[0]))
-            [x.info(a[0]) for x in datas]
-        elif len(a) == 2:
-            data = self.core.type[a[0]]
-            data.info(a[1])
-    def complete_info(self, text, line, begi, endi):
-        self.set_args(['*', '!*'])
-        self.core.ch_dir('/home/dave')
-        return self.pos_complete(text, line, begi, endi)
     def do_EOF(self, line):
         return True
 
 class dataComp(subComp):
-    def __init__(self):
-        super(dataComp, self).__init__()
+    def __init__(self, data, core):
+        super(dataComp, self).__init__(data, core)
         self.msg = "Data Completion"
 
 class commandComp(subComp):
-    def __init__(self):
-        super(commandComp, self).__init__()
+    def __init__(self, data, core):
+        super(commandComp, self).__init__(data, core)
         self.msg = "Command Completion"
 class flistComp(subComp):
-    def __init__(self):
-        super(flistComp, self).__init__()
+    def __init__(self, data, core):
+        super(flistComp, self).__init__(data, core)
         self.msg = "Flist Completion"
         
 class hostComp(subComp):
-    def __init__(self):
-        super(hostComp, self).__init__()
+    def __init__(self, data, core):
+        super(hostComp, self).__init__(data, core)
 
 
 class daCore(object):
     data_dir=os.path.expanduser("~/.ds")
     def __init__(self):
-        self.type = {
-                'hosts' : hostData(),
-               'flists' : flistData(),
-               'commands': commandData(),
-               'data': dataData(),
-                # 'history' : histData(),
-                }
-        [x.set_core(self) for x in self.type.values()]
-        self.command = self.type['commands'].completer
         self.root =  os.getcwd()
+        self.root = '/home/dave'
+        self.data = {}
+        self.data = dataData(self)
         return
     def ch_dir(self, dir):
         self.root = dir
     def run(self):
-        self.command.cmdloop()
+        self.data.completer.cmdloop()
 #####------------------||------------------}}}
 ## end: objects
 ##############################################
