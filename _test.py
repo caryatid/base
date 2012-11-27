@@ -21,17 +21,23 @@ class ARLCompleter(object):
     def __init__(self, logic):
         self.logic = None
         self.logics = logic
+        self.parsed = None
         
-    def traverse(self, tokens, tree):
+    def traverse(self, tokens, tree, alt):
+        if alt < 2:
+            buf = ' ' 
+        else:
+            buf = '.'
+
         if tree is None:
             return []
         elif len(tokens) == 0:
             return []
         if len(tokens) == 1:
-            return [x+'.' for x in tree if x.startswith(tokens[0])]
+            return [x+buf for x in tree if x.startswith(tokens[0])]
         else:
             if tokens[0] in tree.keys():
-                return self.traverse(tokens[1:], tree[tokens[0]])
+                return self.traverse(tokens[1:], tree[tokens[0]], alt)
             else:
                 return []
         return []
@@ -45,51 +51,22 @@ class ARLCompleter(object):
         # data['foo']['grue']['bar']['lorem']
 
         L.debug('complete text: {}, state: {}'.format(text,state))
-        ### 
-        # at each logics step perform '.' splitting and completion
-
-        # determine our argument position
-        # 0 indexed
-        args = readline.get_line_buffer().split()
-        i=[]
-        if (args and '.' in args[-1]) or text:
-            i = args[:-1]
-        pos = len(i)
-        L.debug(pos)
-        # assign logic data appropriately
-        logic = self.logics[pos]
-        # split current argument on '.' and 
-        if args:
-            L.debug(args[-1])
-            d = args[-1]
-            L.debug(d.split('.'))
-            data = d.split('.')
-            # complete via recursive traversal of completer data
-            results = self.traverse(data, logic) + [None] 
-            return results[state]
+        line = readline.get_line_buffer()
+        results = []
+        args = line.split()
+        if not args: 
+            results =  list(self.logics[0].keys())
+        else:
+            if line[-1] == ' ':
+                args.append('')
+            L.debug("args; {}".format(args))
+            self.parsed = [self.traverse(index.split('.'), data, len(index.split('.'))) 
+                    for index, data in zip(args,  self.logics + [None]) ]
+            results = self.parsed[-1]
+        L.debug(results)
+        L.debug("--| " + results[state])
+        return results[state]
              
-        
-        # i = len(readline.get_line_buffer().split()) 
-        # if text: 
-            # i = i -1
-        # i = 0 if i < 0 else i
-        # L.debug("index into logics is: {}".format(i))
-        # logic = self.logics[i]
-        # L.debug(logic)
-        # try:
-            # try:
-                # tokens = readline.get_line_buffer().split()[-1].split('.')
-                # # tokens = re.findall(r'[^\.]+', readline.get_line_buffer().split()[-1])
-            # except IndexError:
-                # tokens = []
-            # if not tokens or readline.get_line_buffer()[-1] in '.':
-                # tokens.append('')
-            # results = self.traverse(tokens, logic) + [None]
-            # L.debug(tokens)
-            # L.debug(results)
-            # return results[state]
-        # except Exception as e:
-            # print(e)
 
 cmds = [
         {
@@ -114,8 +91,13 @@ cmds = [
                 'actor': None,
                 'commander': None,
                 'chief funny pants': None,
-                }
-            }
+                },
+            'tool': {
+                'hammer': None,
+                'saw': None,
+                'table': None,
+                },
+            },
         ]
 
 
