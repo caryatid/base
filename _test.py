@@ -1,6 +1,6 @@
 #!/usr/bin/python
 
-import readline, logging, re
+import readline, logging, re, collections, os,glob
 L = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, filename="/home/dave/code/admin/_test.log"
         , format="%(levelname)s:%(lineno)d:%(name)s:%(message)s")
@@ -8,27 +8,97 @@ logging.basicConfig(level=logging.DEBUG, filename="/home/dave/code/admin/_test.l
 readline.parse_and_bind('tab: complete')
 readline.set_completer_delims(readline.get_completer_delims() + '.')
 L.debug(readline.get_completer_delims())
-class VocabCompleter(object):
-    def __init__(self, vocab):
-        self.vocab = vocab
 
-    def complete(self, text, state):
-        results = [ x+' 'for x in self.vocab if x.startswith(text)] + [None]
-        return results[state]
+class coreData(collections.UserDict):
+   def __init__(self, *data, **kwargs):
+       super(coreData, self).__init__(data)
+       L.debug("init of {}".format(self.__class__))
+       self.name = ""
+       self.id = 'UUID PLEASE'
+   def extra_info(self, idx=None):
+       """ override for extra coreData subclass info """
+       pass
+   def info(self, arg=None):
+       """
+       info on various objects
+       """
+       #######################
+       ## |TODO|formatter for info output|4|
+       ## |0abec356-e9fa-4184-8503-64cf4754b300|2012-11-14 20:18|dave|
+       # should be nice
 
+       print(self.__doc__)
+       [print(" --| {}".format(x)) for x in self]
+       self.extra_info(arg)
+       
+       pass
+
+ 
+########
+# data objects
+class dataData(coreData):
+    """ data types avaliable """
+    def __init__(self):
+        super(dataData, self).__init__()
+        self.name = 'data'
+        self['flists'] =  flistData()
+        # self['hosts'] = hostData()
+        # self['commands'] = commandData()
+
+#########
+## filelists
+class flistData(coreData):
+    """
+    known files
+    """
+    def __init__(self):
+        super(flistData, self).__init__()
+        self.root = '/home/dave'
+        self.data_dir = os.path.join(self.root, '.ds')
+        self.gen_flists() 
+        self.name = 'flists'
+    def gen_filter(self,name):
+        fil = set()
+        try: 
+            with open(os.path.join(self.data_dir, name + ".filter")) as n:
+                [fil.add(x[:-1]) for x in n.readlines()]
+        except IOError as foo:
+            print("should {}.filter be created? ".format(name))
+        finally:
+            with open(os.path.join(self.data_dir, "global.filter")) as g:
+                [fil.add(x[:-1]) for x in g.readlines()] 
+        # convert list to regex or-matcher
+        all_fil = "(" + ")|(".join(fil) + ")"
+        return re.compile(all_fil)
+    def gen_flists(self):
+        L.debug('entering gen_flists')
+        for fname in glob.glob(self.data_dir + "/*.files"):
+            L.debug('here ' + fname)
+            name = os.path.splitext(os.path.split(fname)[1])[0]
+            fil= self.gen_filter(name)
+            self[name] = {}
+            for top in [(os.path.join(self.root, x)[:-1]) 
+                    for x in open(fname).readlines() if x]:
+                if not os.path.isdir(top):
+                    self[name][top] = 'top level dir'
+                else:
+                    for dr,dirs, fls in os.walk(top):
+                        [dirs.remove(d) for d in dirs if fil.match(d)]
+                        fs = [f for f in fls if not fil.match(f)]
+                        for fname in fs:
+                            self[name][fname] = 'fstat here'
 
 class ARLCompleter(object):
-    def __init__(self, logic):
+    def __init__(self,  logic):
         self.logic = None
         self.logics = logic
         self.parsed = None
-        
+
     def traverse(self, tokens, tree, alt):
         if alt < 2:
             buf = ' ' 
         else:
             buf = '.'
-
         if tree is None:
             return []
         elif len(tokens) == 0:
@@ -49,8 +119,8 @@ class ARLCompleter(object):
         # data by adding '.' period chars
         # foo.grue.bar.lorem may reference something like
         # data['foo']['grue']['bar']['lorem']
-
         L.debug('complete text: {}, state: {}'.format(text,state))
+        L.debug(self.logics)
         line = readline.get_line_buffer()
         results = []
         args = line.split()
@@ -67,6 +137,7 @@ class ARLCompleter(object):
         L.debug("--| " + results[state])
         return results[state]
              
+
 
 cmds = [
         {
@@ -100,14 +171,10 @@ cmds = [
             },
         ]
 
-
-
-
-completer = ARLCompleter(cmds)
-#VocabCompleter(['ace', 'bandages', 'for', 'every', 'zombie', 'attack', 'is', 'wise'])
-
-readline.set_completer(completer.complete)
-line = input('p.dizzle> ')
+if __name__== '__main__':
+    completer = ARLCompleter( [dataData(), flistData()] )
+    readline.set_completer(completer.complete)
+    line = input('p.dizzle> ')
 
 
 

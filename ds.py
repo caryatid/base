@@ -50,28 +50,14 @@ class coreCommand(object):
         L.debug("validated args: {}".format(self.validated_args))
         self.execute()
     def set_args(self):
-        self.args = []
-        #########
-        ## args rules
-        # if '!' then rest doesn't matter
-        
-        comp_list = [y if isinstance(y, list) else [y] for y in self.str_args]
-        self.check_prev = [True if '!' in y[0] else False for y in comp_list]
-        comp_list = [list(self.core.data.keys()) if '*' in x[0] else x[0].strip('!') for x in comp_list]
-        # self.args = [[self.core.data[y] for y in x if not y in '*!' ] for x in comp_list]  
-        for cs in comp_list:
-            comps = []
-            for name in cs:
-                try:
-                    comps.append(self.core.data[name])
-                except KeyError:
-                    L.error("why here")        
-            comps.append(self.core.data)
-            self.args.append(comps)
-        L.debug(comp_list)
+        self.args = [self.core.data[x] for x in self.str_args]
     def execute(self):
         pass
-    def complete(self,text, line, begi, endi):
+    def complete(self,text, state):
+        
+
+
+
         self.set_args()
         L.debug("complete at class: {}".format(self.__class__))
         i = 0
@@ -191,50 +177,6 @@ class dataData(coreData):
         self['hosts'] = hostData(self.core)
         self['commands'] = commandData(self.core)
 
-#########
-## filelists
-class flistData(coreData):
-    """
-    known files
-    """
-    def __init__(self, core):
-        super(flistData, self).__init__(core)
-        self.comleter=flistComp(self, core)
-        self.root = self.core.root
-        self.data_dir = os.path.join(self.core.root, '.ds')
-        L.debug(self.data_dir)
-        self.gen_flists() 
-        self.name = 'flists'
-    def gen_filter(self,name):
-        fil = set()
-        try: 
-            with open(os.path.join(self.data_dir, name + ".filter")) as n:
-                [fil.add(x[:-1]) for x in n.readlines()]
-        except IOError as foo:
-            print("should {}.filter be created? ".format(name))
-        finally:
-            with open(os.path.join(self.data_dir, "global.filter")) as g:
-                [fil.add(x[:-1]) for x in g.readlines()] 
-        # convert list to regex or-matcher
-        all_fil = "(" + ")|(".join(fil) + ")"
-        return re.compile(all_fil)
-    def gen_flists(self):
-        for fname in glob.glob(self.data_dir + "/*.files"):
-            name = os.path.splitext(os.path.split(fname)[1])[0]
-            fil= self.gen_filter(name)
-            self[name] = {}
-            for top in [(os.path.join(self.root, x)[:-1]) 
-                    for x in open(fname).readlines() if x]:
-                if not os.path.isdir(top):
-                    self[name][top] = 'top level dir'
-                else:
-                    for dr,dirs, fls in os.walk(top):
-                        [dirs.remove(d) for d in dirs if fil.match(d)]
-                        fs = [f for f in fls if not fil.match(f)]
-                        # self.data[name].append(dr)
-                        # self[name].extend([os.path.join(dr, fname) for fname in fs])
-                        for fname in fs:
-                            self[name][fname] = 'fstat here'
 #########
 ## history
 
