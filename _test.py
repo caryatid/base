@@ -1,12 +1,12 @@
 #!/usr/bin/python
 
-import readline, logging, re, collections, os,glob
+import readline, logging, re, collections, os,glob, shlex, itertools
 L = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, filename="/home/dave/code/admin/_test.log"
         , format="%(levelname)s:%(lineno)d:%(name)s:%(message)s")
 
 readline.parse_and_bind('tab: complete')
-readline.set_completer_delims(readline.get_completer_delims() + '.')
+readline.set_completer_delims(readline.get_completer_delims())
 L.debug(readline.get_completer_delims())
 
 class coreData(collections.UserDict):
@@ -15,6 +15,7 @@ class coreData(collections.UserDict):
        L.debug("init of {}".format(self.__class__))
        self.name = ""
        self.id = 'UUID PLEASE'
+       self.delim = '.'
    def extra_info(self, idx=None):
        """ override for extra coreData subclass info """
        pass
@@ -73,7 +74,6 @@ class flistData(coreData):
     def gen_flists(self):
         L.debug('entering gen_flists')
         for fname in glob.glob(self.data_dir + "/*.files"):
-            L.debug('here ' + fname)
             name = os.path.splitext(os.path.split(fname)[1])[0]
             fil= self.gen_filter(name)
             self[name] = {}
@@ -85,8 +85,8 @@ class flistData(coreData):
                     for dr,dirs, fls in os.walk(top):
                         [dirs.remove(d) for d in dirs if fil.match(d)]
                         fs = [f for f in fls if not fil.match(f)]
-                        for fname in fs:
-                            self[name][fname] = 'fstat here'
+                        for fn in fs:
+                            self[name][os.path.join(dr, fn)] = 'fstat here'
 
 class ARLCompleter(object):
     def __init__(self,  logic):
@@ -94,20 +94,23 @@ class ARLCompleter(object):
         self.logics = logic
         self.parsed = None
 
-    def traverse(self, tokens, tree, alt):
-        if alt < 2:
-            buf = ' ' 
-        else:
-            buf = '.'
+    def traverse(self, arg, tree):
+        delim = ' ' 
+        try:
+            delim = ' ' + tree.delim
+        except AttributeError:
+            delim = ' '
+        readline.set_completer_delims(delim)
+        tokens =  arg.split(delim)
         if tree is None:
             return []
         elif len(tokens) == 0:
             return []
         if len(tokens) == 1:
-            return [x+buf for x in tree if x.startswith(tokens[0])]
+            return [x+delim[-1] for x in tree if x.startswith(tokens[0])]
         else:
             if tokens[0] in tree.keys():
-                return self.traverse(tokens[1:], tree[tokens[0]], alt)
+                return self.traverse(tokens[1:], tree[tokens[0]])
             else:
                 return []
         return []
@@ -120,8 +123,11 @@ class ARLCompleter(object):
         # foo.grue.bar.lorem may reference something like
         # data['foo']['grue']['bar']['lorem']
         L.debug('complete text: {}, state: {}'.format(text,state))
-        L.debug(self.logics)
         line = readline.get_line_buffer()
+        L.debug(''.join(['{:^5}'.format(c) for c in line]))
+        L.debug(''.join(['{:^5}'.format(n) for n in range(len(line))]))
+        L.debug('begi: {}, endi: {}'.format(readline.get_begidx(), readline.get_endidx()))
+                
         results = []
         args = line.split()
         if not args: 
@@ -130,10 +136,13 @@ class ARLCompleter(object):
             if line[-1] == ' ':
                 args.append('')
             L.debug("args; {}".format(args))
-            self.parsed = [self.traverse(index.split('.'), data, len(index.split('.'))) 
-                    for index, data in zip(args,  self.logics + [None]) ]
+            self.parsed = []
+            for index, data in zip(args,  self.logics + [None]): 
+
+                old_delims = readline.get_completer_delims()
+                self.parsed.append(self.traverse(index, data))
+                L.debug(index.split(':'))
             results = self.parsed[-1]
-        L.debug(results)
         L.debug("--| " + results[state])
         return results[state]
              
