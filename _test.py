@@ -58,6 +58,7 @@ class flistData(coreData):
         self.data_dir = os.path.join(self.root, '.ds')
         self.gen_flists() 
         self.name = 'flists'
+        self.delim = ':'
     def gen_filter(self,name):
         fil = set()
         try: 
@@ -93,21 +94,25 @@ class ARLCompleter(object):
         self.logic = None
         self.logics = logic
         self.parsed = None
+        readline.set_completer_delims(' ')
 
-    def traverse(self, arg, tree):
-        delim = ' ' 
-        try:
-            delim = ' ' + tree.delim
+    def traverse(self, tokens, tree):
+        delim = ' '
+        try: 
+            ds = set(readline.get_completer_delims())
+            delim = tree.delim
+            ds.add(delim)
+            readline.set_completer_delims(''.join(ds))
+            L.debug(readline.get_completer_delims() + '--')
         except AttributeError:
-            delim = ' '
-        readline.set_completer_delims(delim)
-        tokens =  arg.split(delim)
+            L.debug('attribute error')
+            pass
         if tree is None:
             return []
         elif len(tokens) == 0:
             return []
         if len(tokens) == 1:
-            return [x+delim[-1] for x in tree if x.startswith(tokens[0])]
+            return [x+delim for x in tree if x.startswith(tokens[0])]
         else:
             if tokens[0] in tree.keys():
                 return self.traverse(tokens[1:], tree[tokens[0]])
@@ -124,9 +129,6 @@ class ARLCompleter(object):
         # data['foo']['grue']['bar']['lorem']
         L.debug('complete text: {}, state: {}'.format(text,state))
         line = readline.get_line_buffer()
-        L.debug(''.join(['{:^5}'.format(c) for c in line]))
-        L.debug(''.join(['{:^5}'.format(n) for n in range(len(line))]))
-        L.debug('begi: {}, endi: {}'.format(readline.get_begidx(), readline.get_endidx()))
                 
         results = []
         args = line.split()
@@ -135,13 +137,15 @@ class ARLCompleter(object):
         else:
             if line[-1] == ' ':
                 args.append('')
-            L.debug("args; {}".format(args))
+            L.debug("args: {}".format(args))
             self.parsed = []
             for index, data in zip(args,  self.logics + [None]): 
-
                 old_delims = readline.get_completer_delims()
-                self.parsed.append(self.traverse(index, data))
-                L.debug(index.split(':'))
+                delim_re = re.compile(r'[^' + re.escape(readline.get_completer_delims()) + r']+')
+                a = delim_re.findall(index)
+                L.debug('433' +str(a))
+                self.parsed.append(self.traverse(a, data))
+                L.debug(self.parsed)
             results = self.parsed[-1]
         L.debug("--| " + results[state])
         return results[state]
