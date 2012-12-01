@@ -16,23 +16,20 @@ class coreData(collections.UserDict):
        L.debug("init of {}".format(self.__class__))
        self.name = ""
        self.id = 'UUID PLEASE'
-       self.ok_delims = '._-|:;^,'
+       self.ok_delims = set('._-|:;^,')
 
    def get_delim(self):
-       delims = []
-       for d in self:
-           try:
-               delims.append(self[d].get_delims())
-           except AttributeError:
-               delims.
-           delims.append(self[d].ok_delims)
-
-           except Error as e:
-               L.debug('error: {}'.format(e))
-               delims.append('')
-           
-       d = set.intersection(*[set(x) for x in delims])
-       return d
+       # intersection of current ok_delims and ok_delims of keys
+       delims = set()
+       try:
+           L.debug('who')
+           [L.debug('keys are {}'.format(x)) for x in self]
+           delims = set.intersection(self.ok_delims, *[self[d].get_delim() for d in self])
+           L.debug('when: {}'.format(delims))
+       except :
+           L.debug('whatever') 
+           delims = self.ok_delims
+       return delims
 
  
 ########
