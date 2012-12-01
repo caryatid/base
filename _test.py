@@ -1,6 +1,7 @@
 #!/usr/bin/python
 
 import readline, logging, re, collections, os,glob, shlex, itertools
+from io import StringIO
 L = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, filename="/home/dave/code/admin/_test.log"
         , format="%(levelname)s:%(lineno)d:%(name)s:%(message)s")
@@ -10,37 +11,36 @@ readline.set_completer_delims(readline.get_completer_delims())
 L.debug(readline.get_completer_delims())
 
 class coreData(collections.UserDict):
-   def __init__(self, *data, **kwargs):
-       super(coreData, self).__init__(data)
+   def __init__(self, d=None, delim='.'):
+       super(coreData, self).__init__(d)
        L.debug("init of {}".format(self.__class__))
        self.name = ""
        self.id = 'UUID PLEASE'
-       self.delim = '.'
-   def extra_info(self, idx=None):
-       """ override for extra coreData subclass info """
-       pass
-   def info(self, arg=None):
-       """
-       info on various objects
-       """
-       #######################
-       ## |TODO|formatter for info output|4|
-       ## |0abec356-e9fa-4184-8503-64cf4754b300|2012-11-14 20:18|dave|
-       # should be nice
+       self.ok_delims = '._-|:;^,'
 
-       print(self.__doc__)
-       [print(" --| {}".format(x)) for x in self]
-       self.extra_info(arg)
-       
-       pass
+   def get_delim(self):
+       delims = []
+       for d in self:
+           try:
+               delims.append(self[d].get_delims())
+           except AttributeError:
+               delims.
+           delims.append(self[d].ok_delims)
+
+           except Error as e:
+               L.debug('error: {}'.format(e))
+               delims.append('')
+           
+       d = set.intersection(*[set(x) for x in delims])
+       return d
 
  
 ########
 # data objects
 class dataData(coreData):
     """ data types avaliable """
-    def __init__(self):
-        super(dataData, self).__init__()
+    def __init__(self, d=None, delim=':'):
+        super(dataData, self).__init__(d, delim)
         self.name = 'data'
         self['flists'] =  flistData()
         # self['hosts'] = hostData()
@@ -52,8 +52,8 @@ class flistData(coreData):
     """
     known files
     """
-    def __init__(self):
-        super(flistData, self).__init__()
+    def __init__(self, d=None, delim='^'):
+        super(flistData, self).__init__(d, delim)
         self.root = '/home/dave'
         self.data_dir = os.path.join(self.root, '.ds')
         self.gen_flists() 
@@ -89,66 +89,102 @@ class flistData(coreData):
                         for fn in fs:
                             self[name][os.path.join(dr, fn)] = 'fstat here'
 
-class ARLCompleter(object):
-    def __init__(self,  logic):
-        self.logic = None
-        self.logics = logic
+class commandData(coreData):
+    def __init__(self,  d=None, delim='.'):
+        super(commandData,self).__init__(d, delim)
+        self.params = [self]
         self.parsed = None
         readline.set_completer_delims(' ')
-
-    def traverse(self, tokens, tree):
-        delim = ' '
+        self.name = 'commands'
+    def parse(self, tokens, tree):
+        L.debug('tok is {}'.format(tokens))
         try: 
             ds = set(readline.get_completer_delims())
-            delim = tree.delim
-            ds.add(delim)
-            readline.set_completer_delims(''.join(ds))
-            L.debug(readline.get_completer_delims() + '--')
+            ds.add(tree.delim)
+            readline.set_completer_delims(''.join(list(ds)))
         except AttributeError:
             L.debug('attribute error')
             pass
         if tree is None:
             return []
         elif len(tokens) == 0:
-            return []
+            return [x for x in tree]
         if len(tokens) == 1:
-            return [x+delim for x in tree if x.startswith(tokens[0])]
+            return [x for x in tree if x.startswith(tokens[0])]
         else:
             if tokens[0] in tree.keys():
-                return self.traverse(tokens[1:], tree[tokens[0]])
+                L.debug('^^^^^^^^^^^')
+                return self.parse(tokens[1:], tree[tokens[0]])
             else:
                 return []
         return []
+    def split(self, data):
+        x =  re.findall(re.compile(r'[^' + re.escape(readline.get_completer_delims() + self.delim) + r']+'), data)
+        return x
+
     def complete(self, text, state):
-        #########
-        ## position based completion
-        # for each position there is a completer data available 
-        # position will remain but completion can narrow the
-        # data by adding '.' period chars
-        # foo.grue.bar.lorem may reference something like
-        # data['foo']['grue']['bar']['lorem']
         L.debug('complete text: {}, state: {}'.format(text,state))
         line = readline.get_line_buffer()
-                
+        args = shlex.split(line)
+        if args and line[-1] == ' ':
+            args.append('')
+        L.debug(args)
+        # split into args
+        # if args 1 or less complete on this data's keys
         results = []
-        args = line.split()
-        if not args: 
-            results =  list(self.logics[0].keys())
+        if not args:
+            results =  [x for x in self]
         else:
-            if line[-1] == ' ':
-                args.append('')
-            L.debug("args: {}".format(args))
-            self.parsed = []
-            for index, data in zip(args,  self.logics + [None]): 
-                old_delims = readline.get_completer_delims()
-                delim_re = re.compile(r'[^' + re.escape(readline.get_completer_delims()) + r']+')
-                a = delim_re.findall(index)
-                L.debug('433' +str(a))
-                self.parsed.append(self.traverse(a, data))
-                L.debug(self.parsed)
-            results = self.parsed[-1]
-        L.debug("--| " + results[state])
+            tmp = self.parse(self.split(args[0]), self)
+            L.debug('tmp is {}'.format(tmp))
+            if tmp:
+                try:
+                    self.params = [self.params[0]] + self[tmp[0]].params
+                    L.debug([x.name for x in self.params])
+                except KeyError as e:
+                    L.debug('no dice, key: {} {}'.format(tmp[0], e))
+            arg_count = []
+            for arg,data in zip(args, self.params + [None]) :
+                arg_count.append(arg)
+                tok = self.split(arg)
+                if arg[-1] in readline.get_completer_delims():
+                    tok.append('')
+                results = self.parse(tok, data)
+        L.debug('results: {}'.format(results))
         return results[state]
+
+class infoCommand(commandData):
+    def __init__(self, d=None, delim='.'):
+        super(infoCommand,self).__init__(d, delim)
+        self.params = [dataData(), flistData()]
+
+
+            
+        # if args:
+        # tokens = lex.split(arg)
+        
+            # # else set self.params to arg[0].params
+        # # parse args : return list of possible options
+        # results = []
+        # args = line.split()
+        # if not args: 
+            # results =  list(self.logics[0].keys())
+        # else:
+            # L.debug("args: {}".format(args))
+            # self.parsed = []
+            # for index, data in zip(args,  self.logics + [None]): 
+                # old_delims = readline.get_completer_delims()
+                # delim_re = re.compile(r'[^' + re.escape(readline.get_completer_delims()) + r']+')
+                # a = delim_re.findall(index)
+                # if a[-1][-1] == data.delim:
+                    # L.debug('neat')
+                    # a.append('')
+                # L.debug('433' +str(a))
+                # self.parsed.append(self.traverse(a, data))
+                # L.debug(self.parsed)
+            # results = self.parsed[-1]
+        # L.debug("--| " + results[state])
+        # return results[state]
              
 
 
@@ -185,7 +221,8 @@ cmds = [
         ]
 
 if __name__== '__main__':
-    completer = ARLCompleter( [dataData(), flistData()] )
+    completer = commandData(  )
+    completer['info'] = infoCommand()
     readline.set_completer(completer.complete)
     line = input('p.dizzle> ')
 
