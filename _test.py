@@ -40,6 +40,7 @@ class dataData(coreData):
         super(dataData, self).__init__(d, delim)
         self.name = 'data'
         self['flists'] =  flistData()
+        self.ok_delims = set('!.,^:')
         # self['hosts'] = hostData()
         # self['commands'] = commandData()
 
@@ -55,7 +56,7 @@ class flistData(coreData):
         self.data_dir = os.path.join(self.root, '.ds')
         self.gen_flists() 
         self.name = 'flists'
-        self.delim = ':'
+        self.ok_delims = set('.,^:')
     def gen_filter(self,name):
         fil = set()
         try: 
