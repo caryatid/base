@@ -1,6 +1,7 @@
 #!/usr/bin/python
 import readline, logging, re, collections, os,glob, shlex, itertools 
 from io import StringIO
+
 L = logging.getLogger(__name__)
 logging.basicConfig(level=logging.DEBUG, filename="/home/dave/code/admin/_test.log"
         , format="%(levelname)s:%(lineno)d:%(name)s:%(message)s")
@@ -13,32 +14,31 @@ class coreData(collections.UserDict):
     def __init__(self, d=None, delim='.'):
         super(coreData, self).__init__(d)
         L.debug("init of {}".format(self.__class__))
-        self.name = ""
+        self.name = 'core'
         self.id = 'UUID PLEASE'
-        self.ok_delims = set('._-|:;^,')
+        self.ok_delims = '.:-|;^,'
     def find(self, tokens):
-        retval = []
-        if len(tokens) == 0:
-            retval =  self
-        else:
-            try:
-                retval = self[tokens[0]].find(tokens[1:])
-            except KeyError:
-                L.debug('incomplete entry')
-                retval = self
-            except AttributeError:
-                L.debug('terminal object')
-                retval = self[tokens[0]]
-        return retval
+        data = self
+        if tokens:
+            for x in tokens:
+                try:
+                    if not x == '':
+                        data = data[x]
+                except TypeError:
+                    pass
+                except KeyError:
+                    pass
+        return data
+                    
     def get_delim(self):
         # intersection of current ok_delims and ok_delims of keys
         delims = set()
         try:
-            delims = set.intersection(self.ok_delims, *[self[d].get_delim() for d in self])
-        except :
-            delims = self.ok_delims
+            delims = set.intersection(set(self.ok_delims), *[self[d].get_delim() for d in self])
+        except:
+            delims = set(self.ok_delims)
+        delims.add(' ')
         return delims
-
 
 ########
 # data objects
@@ -48,7 +48,7 @@ class dataData(coreData):
         super(dataData, self).__init__(d, delim)
         self.name = 'data'
         self['flists'] =  flistData()
-        self.ok_delims = set('!.,^:')
+        self.ok_delims = ':.,^h'
         # self['hosts'] = hostData()
         # self['commands'] = commandData()
 
@@ -64,7 +64,7 @@ class flistData(coreData):
         self.data_dir = os.path.join(self.root, '.ds')
         self.gen_flists() 
         self.name = 'flists'
-        self.ok_delims = set(',^:')
+        self.ok_delims = ':^,'
     def gen_filter(self,name):
         fil = set()
         try: 
@@ -95,6 +95,7 @@ class flistData(coreData):
                         for fn in fs:
                             self[name][os.path.join(dr, fn)] = 'fstat here'
 
+
 class commandData(coreData):
     def __init__(self,  d=None, delim='.'):
         super(commandData,self).__init__(d, delim)
@@ -110,64 +111,62 @@ class commandData(coreData):
                 x.append('')
         except IndexError:
             L.debug('no split')
-        L.debug('split arg: {} is {}'.format(txt,x))
         return x
 
     def complete(self, text, state):
-        # I need a list of canidates indexed by current argument
-        # that then gets filtered by the current text and returned
+        old_delims = readline.get_completer_delims()
         L.debug('complete text: {}, state: {}'.format(text,state))
         # get arguments
         line = readline.get_line_buffer()
         args = shlex.split(line)
         if args and line[-1] == ' ':
             args.append('')
-        L.debug('args: {}'.format(args))
+            text = ''
         # split into args
         # if args 1 or less complete on this data's keys
         results = []
-        if not args:
+        tmp_results = []
+        first_delim = ' ' 
+        if len(args) <= 1:
             results =  [x for x in self]
         else:
             a = self.split(args[0], self)
-            L.debug('hello: {}'.format(a))
             cmd = self.find(a)
             L.debug('cmd is {}'.format(cmd.name))
-            if cmd.params:
-                L.debug('if on {}'.format(type(cmd)))
-                try:
-                    self.params = [self.params[0]] + cmd.params
-                    L.debug('parameters')
-                    L.debug([x.name for x in self.params])
-                except KeyError as e:
-                    L.debug('no dice, key: {} {}'.format(cmd[0], e))
-                L.debug('args: {}'.format(args))
-            for arg,data in zip(args, self.params + [None] ) :
-                L.debug([x.name for x in self.params])
-                readline.set_completer_delims(str(data.get_delim()))
-                L.debug(readline.get_completer_delims())
-                L.debug('arg: {} at data: {}'.format(arg, [x for x in data]))
+            try:
+                self.params = [self.params[0]] + cmd.params
+            except AttributeError:
+                L.debug('no attribute params')
+            
+            L.debug('parameters')
+            L.debug([x.name for x in self.params])
+            for arg,data in zip(args, self.params + [None]):
+                tmp_results = []
                 if not data:
                     L.debug('not data')
-                    results = []
                 else:
+                    L.debug('arg: {} at data: {}'.format(arg, [x for x in data]))
+                    readline.set_completer_delims(str(data.get_delim()))
                     tok = self.split(arg, data)
-                    L.debug('tok: {}'.format(tok))
-                    d = data.find(tok)
-                    results = [x for x in d]
-                try: 
-                    tmp = [x for x in data.get_delim() if x in self.ok_delims][0]
-                    L.debug(tmp)
-                    results = [x + tmp for x in results if x.startswith(text)]
-                except Exception as e:
-                    L.debug('error: {}'.format(e))
-        L.debug('results: {}'.format(results))
+                    if len(tok) > 0 and (not tok[0] in data):
+                        tmp_results = [x for x in data]
+                    else:
+                        tmp_results = [x for x in data.find(tok)]
+                if tmp_results:
+                    first_delim = [x for x in self.ok_delims if x in data.get_delim() and x != ' '][0]
+                    L.debug(first_delim)
+        if tmp_results:
+            results = tmp_results
+        if results:
+            L.debug('results: {} :: text: {}'.format(results, text))
+            L.debug(readline.get_completer_delims())
+            results = [x + first_delim for x in results if x.startswith(text.replace(' ', ''))]
         return results[state]
 
 class infoCommand(commandData):
     def __init__(self, d=None, delim='.'):
         super(infoCommand,self).__init__(d, delim)
-        self.params = [dataData(), flistData()]
+        self.params = [dataData(), flistData() ]
 
 
 if __name__== '__main__':
@@ -175,6 +174,3 @@ if __name__== '__main__':
     completer['info'] = infoCommand()
     readline.set_completer(completer.complete)
     line = input('p.dizzle> ')
-
-
-
