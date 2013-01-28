@@ -1,0 +1,38 @@
+-- todo stuff
+
+{- 
+ -- questions
+ ------------
+ - what are the todo indexen
+ - what am I doing [time]
+ -}
+{- 
+ -- requirements 
+ ---------------
+ - todo data 
+ -- name
+ -- id
+ -- location
+ -- contents
+ - 
+ - goal data
+ -- active timestamps
+ -- 
+ -
+ - schedule data
+ -
+ - timeboxen data
+ -- main
+ -- daily
+ -- anti-main
+ -- secondary
+ -- anti-secondary
+ - start box
+ -- set of questions like:
+ --- current boxen are a,b,c,d,e is this good?
+ --- how did your schedule work yesterday?
+ ---- talk about [x for x in timeboxen]
+ - end box
+ -- todo of fun shit from a fun shit list
+ -- this is where I wonder if I need friends.
+ -}
