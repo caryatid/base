@@ -10,6 +10,9 @@ import Control.Exception (bracket, handle)
 import System.IO (IOMode(..), hClose, hFileSize, openFile)
 import Data.Time
 
+handler :: IOError -> IO (Maybe a)
+handler x = return Nothing
+
 type Predicate = FilePath
     -> Permissions
     -> Maybe Integer
@@ -17,7 +20,10 @@ type Predicate = FilePath
     -> Bool
 
 getFileSize :: FilePath -> IO (Maybe Integer)
-getFileSize a = undefined
+getFileSize path = handle handler $
+    bracket (openFile path ReadMode) hClose $ \h -> do
+        size <- hFileSize h
+        return (Just size)
 
 betterFind :: Predicate -> FilePath -> IO [FilePath]
 
@@ -28,6 +34,7 @@ betterFind p path = getRecursiveContents path >>= filterM check
             modified <- getModificationTime name
             return (p name perms size modified)
 
+
 simpleFileSize path = do
     h <- openFile path ReadMode
     size <- hFileSize h
@@ -35,7 +42,7 @@ simpleFileSize path = do
     return size
 
 
-saferFileSize path = handle (\_ -> return Nothing) $ do
+saferFileSize path = handle handler $ do
     h <- openFile path ReadMode
     size <- hFileSize h
     hClose h
@@ -47,4 +54,19 @@ simpleFind p path = do
     return (filter p names)
 
 
-    
+type InfoP a = FilePath
+    -> Permissions
+    -> Maybe Integer
+    -> UTCTime
+    -> a
+
+{- pathP :: InfoP FilePath -}
+
+
+sizeP :: InfoP Integer
+sizeP _ _ (Just size) _ = size
+sizeP _ _ Nothing _ = -1
+
+
+equalP :: (Eq a) => InfoP a -> a -> InfoP Bool
+equalP f k w x y z = f w x y z == k
