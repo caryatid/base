@@ -51,6 +51,8 @@
 import System.FilePath
 import RecursiveContents
 import Data.List
+import System.IO
+import Control.Monad
 type Uuid = String
 
 data Todo = Todo { name :: String
@@ -61,13 +63,19 @@ data Todo = Todo { name :: String
         , goal :: String
 }
 
-a = "/home/dave/.timebox"
+a = "/home/dave/.timebox/goals/base"
 getFlist :: FilePath -> IO [String]
 getFlist  = getRecursiveContents 
+
+procFile :: FilePath -> IO [String]
+procFile fn = do
+    txt <- withFile fn ReadMode hGetContents
+    return $ lines txt
 
 -- | Main 
 --
 main  = do 
     fname <- getRecursiveContents a
-    fn_less <- filter (not . isInfixOf ".git")  fname
-        
+    fn_less <- return $ filter (not . isInfixOf ".git")  fname
+    text <- concat $ mapM procFile  (take 4 fn_less)
+    mapM putStrLn  text
