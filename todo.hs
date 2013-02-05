@@ -47,6 +47,49 @@
 --  |                                                                 |
 --  | +|.............// dc590064-3fd4-4b9e-ab46-e356d7923e2d //---|}}}|
 --  +-----------------------------------------------------------------+ 
+{-|
+--| how was your last day, generally?
+
+--| for each goal, g:
+----| g is currently your x objective. 
+----| would you like to stay on g? [ move to other objective, replace? ]
+----| Here are the current g todos, [x | x <- todos g]
+------| does the (take 1 todos) look good?
+------| no ? pick a new todo : cool
+
+--| how is your objective pattern?
+--| good -- run with it, bad offer changes
+
+
+--| so for today
+--| 
+--| for x in [alternate, daily, habitual, primary, secondary]
+--|     base is currently in primary, cool?
+--|     out of these top todos: [list]
+--|     top todo for base is fdsfadafd, bueno?
+--|     
+--| your objective pattern for today is
+--| 
+--| [00:00] --
+--|         --
+--|         --
+--|         -- start primary [base]
+--|         --
+--| [00:00] --
+--|         --
+--|         -- start secondary [music]
+--|         -- 
+--|         -- start primary [base]
+--|         --
+--|         ...
+--| 
+--| 
+--| 
+--| Is this good, you have patterns [ basic, daily, lunch ]
+--| are they appropriate?
+--| if yes, then start the timer
+--| if no then run the objective pattern changer
+-}
 
 import System.FilePath
 import RecursiveContents
@@ -78,4 +121,4 @@ main  = do
     fname <- getRecursiveContents a
     fn_less <- return $ filter (not . isInfixOf ".git")  fname
     text <- concat $ mapM procFile  (take 4 fn_less)
-    mapM putStrLn  text
+    mapM putStrLn $ text
