@@ -1,1 +1,1 @@
-#highly varient lowly useful
+#highly variant lowly useful
