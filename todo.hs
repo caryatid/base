@@ -10,9 +10,6 @@
 
 --| your daily todos are:
 --| any from yesterday need to take precedence?
-
-
-
 -}
 
 
@@ -35,6 +32,7 @@ data Todo = Todo { name :: String
  - instance of Read/Show
  - Read returns an mempty or mzero or whatever if not valid todo shit
  - header '+|.....// //...|' toggles 
+ -}
 
 a = "/home/dave/.timebox/goals/base"
 getFlist :: FilePath -> IO [String]
@@ -47,6 +45,7 @@ procFile fn = do
 
 -- | Main 
 --
+
 main  = do 
     fname <- getRecursiveContents a
     fn_less <- return $ filter (not . isInfixOf ".git")  fname
