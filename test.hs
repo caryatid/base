@@ -97,6 +97,34 @@ foo x = ("dumb", x+1)
 foo2 :: String -> State Int [String]
 foo2 z = state (\x -> (["lame","nice", z], x+10))
 
+-- data Either' e a = Le e 
+--                    | Ri a
+
+
+-- instance Functor (Either' e) where
+--        fmap _ (Le e) = Le e
+--        fmap f (Ri a) = Ri $ f a
+
+
+-- instance Functor ((->) e) where
+--         fmap g x = g . x
+
+-- instance Functor ((,) e) where
+--         fmap g (a, b) = (a, g b)
+
+-- data Pair a = Pair a a
+
+-- instance Functor Pair where
+--         fmap f (Pair a b) = Pair (f a) (f b)
+
+data ITree a = Leaf (Int -> a)
+        | Node [ITree a]
+        deriving(Show)
+
+instance Functor ITree where
+        fmap f (Leaf g) = Leaf $ f . g
+        fmap f (Node xs) = Node $ fmap (fmap f) xs
+
 
 main = do
     let x = 0
@@ -110,37 +138,3 @@ main = do
                             state foo
                             return $ show val  
     putStrLn $ "hello" ++ (show b) ++ a
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    
-
-
-
