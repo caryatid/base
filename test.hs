@@ -1,8 +1,8 @@
--- | import Network
--- | import System.IO
--- | import System.Process
--- | import Data.List
--- | import Control.Monad.State
+-- import Network
+import System.IO
+import System.Process
+import Data.List
+import Control.Monad.State
 -- | {- import Control.Concurrent -}
 -- | 
 -- | 
@@ -117,13 +117,31 @@ foo2 z = state (\x -> (["lame","nice", z], x+10))
 -- instance Functor Pair where
 --         fmap f (Pair a b) = Pair (f a) (f b)
 
-data ITree a = Leaf (Int -> a)
-        | Node [ITree a]
-        deriving(Show)
+-- data ITree a = Leaf (Int -> a)
+--         | Node [ITree a]
+--         deriving(Show)
+-- 
+-- instance Functor ITree where
+--         fmap f (Leaf g) = Leaf $ f . g
+--         fmap f (Node xs) = Node $ fmap (fmap f) xs
 
-instance Functor ITree where
-        fmap f (Leaf g) = Leaf $ f . g
-        fmap f (Node xs) = Node $ fmap (fmap f) xs
+data BinTree a = Empty
+                | Node a (BinTree a) (BinTree a)
+                    deriving(Show)
+
+treeFromList :: (Ord a) => [a] -> BinTree a
+treeFromList [] = Empty
+treeFromList (x:xs) = Node x (treeFromList (filter (<x) xs))
+                             (treeFromList (filter (>x) xs))
+
+average :: Fractional a => [a] -> a
+
+average xs = (foldl (+) 0 xs) / (fromIntegral $ length xs)
+
+-- grab random value, separate like quicksort shit then count
+
+middle :: Ord a => [a] -> a
+
 
 
 main = do
