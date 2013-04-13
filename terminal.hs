@@ -10,7 +10,7 @@ import Data.List
 import Data.Colour as DC
 import Data.Colour.Names
 import Data.Colour.SRGB
-
+import Control.Applicative
 -- terminal colors
 data TColor = TRed | TGreen | TBlue
             deriving (Enum, Bounded, Eq)
@@ -49,6 +49,7 @@ test = do
         spawn $  intercalate " " $ ["urxvt"] ++ genColorSet
 
                 
+darker16 c = map (flip darken c) $ map (\x -> x / 16) [1..16] 
 
 -- convert a color to a shell-escaped X11 color spec
 tColor :: TColor -> (String, String)
