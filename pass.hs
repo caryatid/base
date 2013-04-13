@@ -20,5 +20,19 @@ askPassword = do putStrLn "monkey junky: "
                  if isJust pw
                      then do putStrLn "Storing..."
                      else askPassword
+
+
+newtype MaybeT m a = MaybeT { runMaybeT :: m (Maybe a) }
+
+instance Monad m => Monad (MaybeT m) where
+        return = MaybeT . return . return
+        (>>=) m f = MaybeT $ do v <- runMaybeT m
+                                case v of
+                                    Nothing -> return Nothing
+                                    Just x -> runMaybeT $ f x
+
+instance Monad m => MonadPlus (MaybeT m) where
+        mzero = MaybeT $ return Nothing
+
                         
                                  
